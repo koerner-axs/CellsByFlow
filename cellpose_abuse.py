@@ -6,15 +6,15 @@ from matplotlib import pyplot as plt
 import scipy
 
 
-def _extend_centers_convolution(T: np.ndarray, object_y, object_x, ymed, xmed):
-    niter = 2 * (T.shape[0] + T.shape[1])
+def _extend_centers_convolution(T: np.ndarray, object_y, object_x, ymed, xmed, num_diffusion_steps):
+    #niter = 2 * (T.shape[0] + T.shape[1])
+    niter = num_diffusion_steps
     kernel_size = 3
     kernel = (kernel_size ** -2) * np.ones((kernel_size, kernel_size), dtype=np.float64)
     for iteration in range(niter):
         T[ymed, xmed] += 1
-        #T[object_y, object_x] = scipy.ndimage.correlate(T, kernel, mode='constant')[object_y, object_x]
-        T[object_y, object_x] = scipy.ndimage.gaussian_filter(T, sigma=3.0, mode='constant')[object_y, object_x]
-        #T = scipy.ndimage.gaussian_filter(T, sigma=3.0, mode='constant')
+        T[object_y, object_x] = scipy.ndimage.correlate(T, kernel, mode='constant')[object_y, object_x]
+        #T[object_y, object_x] = scipy.ndimage.gaussian_filter(T, sigma=3.0, mode='constant')[object_y, object_x]
     return T
 
 
@@ -58,11 +58,12 @@ def masks_to_flows_cpu(masks, device=None):
 
             num_diffusion_steps = 2 * np.int32(np.ptp(object_x) + np.ptp(object_y))
             T = np.zeros((size_y + 2, size_x + 2), np.float64)
-            T = _extend_centers_convolution(T, object_y, object_x, ymed, xmed)
+            T = _extend_centers_convolution(T, object_y, object_x, ymed, xmed, num_diffusion_steps)
             # T = _extend_centers_gpu(T)
 
             # T[(object_y+1)*size_x + object_x+1] += 1
             #T[object_y+1, object_x+1] = np.log(1.+T[object_y+1, object_x+1])
+            T[object_y+1, object_x+1] = np.log1p(T[object_y+1, object_x+1])
 
             # Differentiate, ignore factor of 2.
             #dy = T[object_y + 1, object_x] - T[object_y - 1, object_x]
@@ -79,7 +80,7 @@ def masks_to_flows_cpu(masks, device=None):
     flow_field /= (1e-20 + (flow_field ** 2).sum(axis=0) ** 0.5)
 
     from matplotlib import pyplot as plt
-    T_cum = np.log(T_cum)
+    T_cum = np.log(T_cum)  # np.log1p(T_cum)
     plt.imshow(T_cum)
     plt.show()
 
